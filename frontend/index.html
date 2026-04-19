@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WebGIS Fasilitas Publik - Bengkulu</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #333; }
+
+    /* NAVBAR */
+    .navbar {
+      background: linear-gradient(135deg, #1a6b3a, #2ecc71);
+      color: white; padding: 12px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2); position: relative; z-index: 1000;
+    }
+    .navbar .brand { font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .navbar .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-user { font-size: 0.9rem; opacity: 0.9; }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
+    .btn-white { background: white; color: #1a6b3a; }
+    .btn-white:hover { background: #e8f5e9; }
+    .btn-danger { background: #e74c3c; color: white; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-primary { background: #1a6b3a; color: white; }
+    .btn-primary:hover { background: #145c2f; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-success:hover { background: #219a52; }
+    .btn-warning { background: #f39c12; color: white; }
+    .btn-warning:hover { background: #d68910; }
+
+    /* AUTH OVERLAY */
+    .auth-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center; z-index: 9999;
+    }
+    .auth-box {
+      background: white; border-radius: 16px; padding: 40px;
+      width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .auth-box h2 { text-align: center; color: #1a6b3a; margin-bottom: 8px; font-size: 1.5rem; }
+    .auth-box p.subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 0.9rem; }
+    .auth-tabs { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; margin-bottom: 24px; }
+    .auth-tabs button {
+      flex: 1; padding: 10px; border: none; background: #f5f5f5;
+      cursor: pointer; font-weight: 600; color: #666; transition: all 0.2s;
+    }
+    .auth-tabs button.active { background: #1a6b3a; color: white; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 0.9rem; transition: border 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none; border-color: #2ecc71; box-shadow: 0 0 0 3px rgba(46,204,113,0.15);
+    }
+    .form-group .error-msg { color: #e74c3c; font-size: 0.78rem; margin-top: 4px; display: none; }
+    .form-group.has-error input, .form-group.has-error select, .form-group.has-error textarea { border-color: #e74c3c; }
+    .form-group.has-error .error-msg { display: block; }
+    .btn-full { width: 100%; padding: 12px; font-size: 1rem; border-radius: 8px; margin-top: 8px; }
+    .alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 0.88rem; display: none; }
+    .alert-error { background: #fdecea; color: #c0392b; border: 1px solid #f5c6cb; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+
+    /* LAYOUT */
+    .main-container { display: flex; height: calc(100vh - 54px); }
+    .sidebar {
+      width: 360px; background: white; overflow-y: auto;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.08); z-index: 100;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 16px 20px; border-bottom: 1px solid #eee;
+      display: flex; align-items: center; justify-content: space-between;
+      background: #f8fffe; position: sticky; top: 0; z-index: 10;
+    }
+    .sidebar-header h3 { font-size: 1rem; color: #1a6b3a; display: flex; align-items: center; gap: 8px; }
+    .fasilitas-count {
+      background: #e8f5e9; color: #1a6b3a; font-size: 0.8rem;
+      padding: 2px 8px; border-radius: 20px; font-weight: 600;
+    }
+    .fasilitas-list { padding: 12px; flex: 1; }
+    .fasilitas-card {
+      background: white; border: 1px solid #e8e8e8; border-radius: 10px;
+      padding: 14px; margin-bottom: 10px; cursor: pointer;
+      transition: all 0.2s; border-left: 4px solid #2ecc71;
+    }
+    .fasilitas-card:hover { border-color: #1a6b3a; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+    .fasilitas-card h4 { font-size: 0.95rem; color: #222; margin-bottom: 4px; }
+    .fasilitas-card .jenis-badge {
+      display: inline-block; font-size: 0.72rem; font-weight: 600;
+      padding: 2px 8px; border-radius: 20px; margin-bottom: 6px;
+    }
+    .fasilitas-card .alamat { font-size: 0.8rem; color: #777; display: flex; align-items: flex-start; gap: 4px; }
+    .fasilitas-card .card-actions { display: flex; gap: 6px; margin-top: 10px; }
+    .card-actions .btn { padding: 5px 12px; font-size: 0.78rem; border-radius: 6px; }
+    .no-data { text-align: center; padding: 40px 20px; color: #aaa; }
+    .no-data i { font-size: 2.5rem; margin-bottom: 12px; display: block; }
+
+    /* MAP */
+    #map { 
+        height: 100%; 
+        width: 100%; 
+        min-height: 400px;
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center; z-index: 5000;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-box {
+      background: white; border-radius: 16px; padding: 32px;
+      width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .modal-header h3 { font-size: 1.1rem; color: #1a6b3a; display: flex; align-items: center; gap: 8px; }
+    .modal-close { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #999; padding: 4px; }
+    .modal-close:hover { color: #333; }
+    .coord-row { display: flex; gap: 10px; }
+    .coord-row .form-group { flex: 1; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions .btn { flex: 1; padding: 11px; font-size: 0.9rem; }
+
+    /* TOAST */
+    .toast-container { position: fixed; top: 70px; right: 20px; z-index: 9998; display: flex; flex-direction: column; gap: 8px; }
+    .toast {
+      background: white; border-radius: 10px; padding: 14px 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15); font-size: 0.88rem;
+      display: flex; align-items: center; gap: 10px; min-width: 280px;
+      animation: slideIn 0.3s ease; border-left: 4px solid;
+    }
+    .toast.success { border-color: #27ae60; color: #155724; }
+    .toast.error { border-color: #e74c3c; color: #721c24; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+
+    /* LEGEND */
+    .legend {
+      position: absolute; bottom: 30px; right: 12px; z-index: 1000;
+      background: white; border-radius: 10px; padding: 14px 18px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15); font-size: 0.82rem;
+    }
+    .legend h4 { font-size: 0.85rem; margin-bottom: 8px; color: #444; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+    /* MAP INFO */
+    .map-click-info {
+      position: absolute; bottom: 30px; left: 380px; z-index: 1000;
+      background: rgba(0,0,0,0.7); color: white; padding: 8px 14px;
+      border-radius: 8px; font-size: 0.82rem; display: none;
+    }
+
+    /* JENIS COLORS */
+    .jenis-kesehatan { background: #fce4e4; color: #c0392b; }
+    .jenis-pendidikan { background: #e3f2fd; color: #1565c0; }
+    .jenis-ibadah { background: #fff3e0; color: #e65100; }
+    .jenis-olahraga { background: #e8f5e9; color: #2e7d32; }
+    .jenis-transportasi { background: #f3e5f5; color: #6a1b9a; }
+    .jenis-pemerintahan { background: #e0f2f1; color: #00695c; }
+    .jenis-lainnya { background: #f5f5f5; color: #555; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c0c0c0; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
+  </style>
+</head>
+<body>
+
+<!-- ===== AUTH OVERLAY ===== -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-box">
+    <h2><i class="fas fa-map-marked-alt" style="color:#2ecc71"></i> WebGIS Fasilitas Publik</h2>
+    <p class="subtitle">Sistem Informasi Geografis Fasilitas Publik Kota Bengkulu</p>
+
+    <div class="auth-tabs">
+      <button class="active" onclick="switchTab('login')">Masuk</button>
+      <button onclick="switchTab('register')">Daftar</button>
+    </div>
+
+    <div id="authAlert" class="alert alert-error"></div>
+
+    <!-- LOGIN FORM -->
+    <div id="loginForm">
+      <div class="form-group" id="lg-username-group">
+        <label>Username</label>
+        <input type="text" id="lgUsername" placeholder="Masukkan username"/>
+        <span class="error-msg" id="lg-username-err">Username wajib diisi</span>
+      </div>
+      <div class="form-group" id="lg-password-group">
+        <label>Password</label>
+        <input type="password" id="lgPassword" placeholder="Masukkan password"/>
+        <span class="error-msg" id="lg-password-err">Password wajib diisi</span>
+      </div>
+      <button class="btn btn-success btn-full" onclick="doLogin()">
+        <i class="fas fa-sign-in-alt"></i> Masuk
+      </button>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="registerForm" style="display:none">
+      <div class="form-group" id="rg-username-group">
+        <label>Username</label>
+        <input type="text" id="rgUsername" placeholder="Min. 3 karakter"/>
+        <span class="error-msg" id="rg-username-err">Username minimal 3 karakter</span>
+      </div>
+      <div class="form-group" id="rg-email-group">
+        <label>Email</label>
+        <input type="email" id="rgEmail" placeholder="contoh@email.com"/>
+        <span class="error-msg" id="rg-email-err">Email tidak valid</span>
+      </div>
+      <div class="form-group" id="rg-password-group">
+        <label>Password</label>
+        <input type="password" id="rgPassword" placeholder="Min. 6 karakter"/>
+        <span class="error-msg" id="rg-password-err">Password minimal 6 karakter</span>
+      </div>
+      <button class="btn btn-success btn-full" onclick="doRegister()">
+        <i class="fas fa-user-plus"></i> Daftar Sekarang
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== NAVBAR ===== -->
+<div class="navbar">
+  <div class="brand">
+    <i class="fas fa-map-marked-alt"></i>
+    WebGIS Fasilitas Publik - Bengkulu
+  </div>
+  <div class="nav-right">
+    <span class="nav-user"><i class="fas fa-user-circle"></i> <span id="navUsername">-</span></span>
+    <button class="btn btn-white" onclick="openModal()">
+      <i class="fas fa-plus"></i> Tambah Fasilitas
+    </button>
+    <button class="btn btn-danger" onclick="doLogout()">
+      <i class="fas fa-sign-out-alt"></i> Keluar
+    </button>
+  </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div class="main-container">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h3><i class="fas fa-list"></i> Daftar Fasilitas</h3>
+      <span class="fasilitas-count" id="fasCount">0</span>
+    </div>
+    <div class="fasilitas-list" id="fasilitasList">
+      <div class="no-data">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div style="position:relative; flex:1; height:100%;">
+    <div id="map"></div>
+    <div class="map-click-info" id="mapClickInfo">
+      <i class="fas fa-mouse-pointer"></i> Klik peta untuk memilih koordinat
+    </div>
+    <div class="legend">
+      <h4><i class="fas fa-circle-info"></i> Legenda</h4>
+      <div class="legend-item"><div class="legend-dot" style="background:#e74c3c"></div> Kesehatan</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3498db"></div> Pendidikan</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div> Ibadah</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#27ae60"></div> Olahraga</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div> Transportasi</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1abc9c"></div> Pemerintahan</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#95a5a6"></div> Lainnya</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL FORM ===== -->
+<div class="modal-overlay" id="formModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modalTitle"><i class="fas fa-map-pin"></i> Tambah Fasilitas</h3>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div class="form-group" id="m-nama-group">
+      <label>Nama Fasilitas *</label>
+      <input type="text" id="mNama" placeholder="Contoh: RSUD M. Yunus"/>
+      <span class="error-msg" id="m-nama-err">Nama fasilitas wajib diisi</span>
+    </div>
+
+    <div class="form-group" id="m-jenis-group">
+      <label>Jenis Fasilitas *</label>
+      <select id="mJenis">
+        <option value="">-- Pilih Jenis --</option>
+        <option value="Kesehatan">Kesehatan (RS, Puskesmas, Klinik)</option>
+        <option value="Pendidikan">Pendidikan (SD, SMP, SMA, Kampus)</option>
+        <option value="Ibadah">Tempat Ibadah (Masjid, Gereja, dll)</option>
+        <option value="Olahraga">Olahraga (Stadion, GOR, Lapangan)</option>
+        <option value="Transportasi">Transportasi (Terminal, Stasiun)</option>
+        <option value="Pemerintahan">Pemerintahan (Kantor, Balai Kota)</option>
+        <option value="Lainnya">Lainnya</option>
+      </select>
+      <span class="error-msg" id="m-jenis-err">Jenis fasilitas wajib dipilih</span>
+    </div>
+
+    <div class="form-group" id="m-alamat-group">
+      <label>Alamat *</label>
+      <input type="text" id="mAlamat" placeholder="Jl. Contoh No. 1, Bengkulu"/>
+      <span class="error-msg" id="m-alamat-err">Alamat wajib diisi</span>
+    </div>
+
+    <div class="coord-row">
+      <div class="form-group" id="m-lat-group">
+        <label>Latitude *</label>
+        <input type="number" id="mLat" placeholder="-3.7928" step="any"/>
+        <span class="error-msg" id="m-lat-err">Latitude tidak valid (-90 s/d 90)</span>
+      </div>
+      <div class="form-group" id="m-lon-group">
+        <label>Longitude *</label>
+        <input type="number" id="mLon" placeholder="102.2608" step="any"/>
+        <span class="error-msg" id="m-lon-err">Longitude tidak valid (-180 s/d 180)</span>
+      </div>
+    </div>
+    <small style="color:#888; margin-top:-8px; display:block; margin-bottom:12px;">
+      <i class="fas fa-info-circle"></i> Klik tombol di bawah ini, lalu klik titik di peta untuk mengisi koordinat otomatis
+    </small>
+    <button class="btn btn-primary" style="width:100%; margin-bottom:16px;" id="btnPickCoord" onclick="startPickCoord()">
+      <i class="fas fa-crosshairs"></i> Pilih Koordinat dari Peta
+    </button>
+
+    <div class="form-group">
+      <label>Deskripsi</label>
+      <textarea id="mDeskripsi" rows="3" placeholder="Keterangan tambahan tentang fasilitas..."></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-success" onclick="submitFasilitas()">
+        <i class="fas fa-save"></i> Simpan
+      </button>
+      <button class="btn" style="background:#f0f0f0; color:#555;" onclick="closeModal()">
+        <i class="fas fa-times"></i> Batal
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const API = 'http://localhost:8000';
+  let token = localStorage.getItem('wg_token');
+  let username = localStorage.getItem('wg_user');
+  let map, markers = {}, editingId = null, pickingCoord = false;
+
+  // ===== JENIS COLORS =====
+  const jenisConfig = {
+    'Kesehatan':     { color: '#e74c3c', icon: 'fa-hospital' },
+    'Pendidikan':    { color: '#3498db', icon: 'fa-school' },
+    'Ibadah':        { color: '#e67e22', icon: 'fa-mosque' },
+    'Olahraga':      { color: '#27ae60', icon: 'fa-futbol' },
+    'Transportasi':  { color: '#9b59b6', icon: 'fa-bus' },
+    'Pemerintahan':  { color: '#1abc9c', icon: 'fa-building-columns' },
+    'Lainnya':       { color: '#95a5a6', icon: 'fa-map-pin' },
+  };
+
+  function getColor(jenis) { return (jenisConfig[jenis] || jenisConfig['Lainnya']).color; }
+  function getJenisClass(jenis) { return 'jenis-' + jenis.toLowerCase(); }
+
+  // ===== INIT =====
+  window.onload = function() {
+    initMap();
+    if (token) {
+      showApp();
+    }
+  };
+
+  function initMap() {
+    map = L.map('map').setView([-3.7928, 102.2608], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    map.on('click', function(e) {
+      if (pickingCoord) {
+        document.getElementById('mLat').value = e.latlng.lat.toFixed(6);
+        document.getElementById('mLon').value = e.latlng.lng.toFixed(6);
+        stopPickCoord();
+        showToast('✅ Koordinat berhasil dipilih!', 'success');
+      }
+    });
+  }
+
+  // ===== AUTH =====
+  function switchTab(tab) {
+    const btns = document.querySelectorAll('.auth-tabs button');
+    btns[0].classList.toggle('active', tab === 'login');
+    btns[1].classList.toggle('active', tab === 'register');
+    document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+    document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+    hideAlert('authAlert');
+  }
+
+  async function doLogin() {
+    const u = document.getElementById('lgUsername').value.trim();
+    const p = document.getElementById('lgPassword').value;
+    let valid = true;
+    if (!u) { setErr('lg-username-group', true); valid = false; }
+    else { setErr('lg-username-group', false); }
+    if (!p) { setErr('lg-password-group', true); valid = false; }
+    else { setErr('lg-password-group', false); }
+    if (!valid) return;
+
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Login gagal');
+      token = data.access_token;
+      localStorage.setItem('wg_token', token);
+      localStorage.setItem('wg_user', u);
+      username = u;
+      showApp();
+    } catch(e) { showAlert('authAlert', e.message); }
+  }
+
+  async function doRegister() {
+    const u = document.getElementById('rgUsername').value.trim();
+    const e = document.getElementById('rgEmail').value.trim();
+    const p = document.getElementById('rgPassword').value;
+    let valid = true;
+    if (u.length < 3) { setErr('rg-username-group', true); valid = false; }
+    else { setErr('rg-username-group', false); }
+    if (!e.includes('@')) { setErr('rg-email-group', true); valid = false; }
+    else { setErr('rg-email-group', false); }
+    if (p.length < 6) { setErr('rg-password-group', true); valid = false; }
+    else { setErr('rg-password-group', false); }
+    if (!valid) return;
+
+    try {
+      const res = await fetch(`${API}/auth/register`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ username: u, email: e, password: p })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Registrasi gagal');
+      token = data.access_token;
+      localStorage.setItem('wg_token', token);
+      localStorage.setItem('wg_user', u);
+      username = u;
+      showApp();
+    } catch(err) { showAlert('authAlert', err.message); }
+  }
+
+  function doLogout() {
+    localStorage.removeItem('wg_token');
+    localStorage.removeItem('wg_user');
+    token = null; username = null;
+    document.getElementById('authOverlay').style.display = 'flex';
+  }
+
+  function showApp() {
+    document.getElementById('authOverlay').style.display = 'none';
+    document.getElementById('navUsername').textContent = username;
+    loadFasilitas();
+  }
+
+  // ===== FASILITAS CRUD =====
+  async function loadFasilitas() {
+    try {
+      const res = await fetch(`${API}/fasilitas`);
+      const data = await res.json();
+      renderList(data);
+      renderMarkers(data);
+    } catch(e) {
+      document.getElementById('fasilitasList').innerHTML = `
+        <div class="no-data">
+          <i class="fas fa-exclamation-triangle" style="color:#e74c3c"></i>
+          <p>Gagal memuat data. Pastikan backend berjalan!</p>
+        </div>`;
+    }
+  }
+
+  function renderList(data) {
+    const container = document.getElementById('fasilitasList');
+    document.getElementById('fasCount').textContent = data.length;
+    if (!data.length) {
+      container.innerHTML = `<div class="no-data"><i class="fas fa-map-pin"></i><p>Belum ada fasilitas.<br>Tambahkan fasilitas pertama!</p></div>`;
+      return;
+    }
+    container.innerHTML = data.map(f => `
+      <div class="fasilitas-card" onclick="flyTo(${f.id}, ${f.latitude}, ${f.longitude})">
+        <h4>${f.nama}</h4>
+        <span class="jenis-badge ${getJenisClass(f.jenis)}">${f.jenis}</span>
+        <div class="alamat"><i class="fas fa-location-dot" style="margin-top:2px"></i> ${f.alamat}</div>
+        ${f.deskripsi ? `<div style="font-size:0.78rem;color:#888;margin-top:4px;">${f.deskripsi}</div>` : ''}
+        <div class="card-actions">
+          <button class="btn btn-warning" onclick="event.stopPropagation(); openEdit(${f.id})">
+            <i class="fas fa-pen"></i> Edit
+          </button>
+          <button class="btn btn-danger" onclick="event.stopPropagation(); deleteFasilitas(${f.id}, '${f.nama}')">
+            <i class="fas fa-trash"></i> Hapus
+          </button>
+        </div>
+      </div>`).join('');
+  }
+
+  function renderMarkers(data) {
+    Object.values(markers).forEach(m => map.removeLayer(m));
+    markers = {};
+    data.forEach(f => {
+      const color = getColor(f.jenis);
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:${color}; width:32px; height:32px; border-radius:50% 50% 50% 0;
+          transform:rotate(-45deg); border:3px solid white;
+          box-shadow:0 2px 8px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [32, 32], iconAnchor: [16, 32]
+      });
+      const marker = L.marker([f.latitude, f.longitude], { icon })
+        .addTo(map)
+        .bindPopup(`
+          <div style="min-width:200px">
+            <strong style="font-size:1rem">${f.nama}</strong><br>
+            <span style="background:${color};color:white;padding:2px 8px;border-radius:20px;font-size:0.78rem;">${f.jenis}</span>
+            <hr style="margin:8px 0">
+            <small><i class="fas fa-location-dot"></i> ${f.alamat}</small><br>
+            ${f.deskripsi ? `<small>${f.deskripsi}</small><br>` : ''}
+            <div style="margin-top:10px;display:flex;gap:6px;">
+              <button onclick="openEdit(${f.id})" style="flex:1;padding:6px;background:#f39c12;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">
+                <i class="fas fa-pen"></i> Edit
+              </button>
+              <button onclick="deleteFasilitas(${f.id},'${f.nama}')" style="flex:1;padding:6px;background:#e74c3c;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">
+                <i class="fas fa-trash"></i> Hapus
+              </button>
+            </div>
+          </div>`);
+      markers[f.id] = marker;
+    });
+  }
+
+  function flyTo(id, lat, lon) {
+    map.flyTo([lat, lon], 16, { duration: 1 });
+    if (markers[id]) setTimeout(() => markers[id].openPopup(), 800);
+  }
+
+  // ===== MODAL =====
+  function openModal(data = null) {
+    editingId = data ? data.id : null;
+    document.getElementById('modalTitle').innerHTML = data
+      ? '<i class="fas fa-pen"></i> Edit Fasilitas'
+      : '<i class="fas fa-map-pin"></i> Tambah Fasilitas';
+    document.getElementById('mNama').value = data?.nama || '';
+    document.getElementById('mJenis').value = data?.jenis || '';
+    document.getElementById('mAlamat').value = data?.alamat || '';
+    document.getElementById('mLat').value = data?.latitude || '';
+    document.getElementById('mLon').value = data?.longitude || '';
+    document.getElementById('mDeskripsi').value = data?.deskripsi || '';
+    ['m-nama-group','m-jenis-group','m-alamat-group','m-lat-group','m-lon-group'].forEach(id => setErr(id, false));
+    document.getElementById('formModal').classList.add('show');
+  }
+
+  function closeModal() {
+    document.getElementById('formModal').classList.remove('show');
+    stopPickCoord();
+    editingId = null;
+  }
+
+  async function openEdit(id) {
+    try {
+      const res = await fetch(`${API}/fasilitas/${id}`);
+      const data = await res.json();
+      openModal(data);
+    } catch(e) { showToast('Gagal memuat data fasilitas', 'error'); }
+  }
+
+  function validateForm() {
+    const nama = document.getElementById('mNama').value.trim();
+    const jenis = document.getElementById('mJenis').value;
+    const alamat = document.getElementById('mAlamat').value.trim();
+    const lat = parseFloat(document.getElementById('mLat').value);
+    const lon = parseFloat(document.getElementById('mLon').value);
+    let valid = true;
+
+    if (!nama) { setErr('m-nama-group', true); valid = false; } else { setErr('m-nama-group', false); }
+    if (!jenis) { setErr('m-jenis-group', true); valid = false; } else { setErr('m-jenis-group', false); }
+    if (!alamat) { setErr('m-alamat-group', true); valid = false; } else { setErr('m-alamat-group', false); }
+    if (isNaN(lat) || lat < -90 || lat > 90) { setErr('m-lat-group', true); valid = false; } else { setErr('m-lat-group', false); }
+    if (isNaN(lon) || lon < -180 || lon > 180) { setErr('m-lon-group', true); valid = false; } else { setErr('m-lon-group', false); }
+    return valid;
+  }
+
+  async function submitFasilitas() {
+    if (!validateForm()) return;
+    const body = {
+      nama: document.getElementById('mNama').value.trim(),
+      jenis: document.getElementById('mJenis').value,
+      alamat: document.getElementById('mAlamat').value.trim(),
+      latitude: parseFloat(document.getElementById('mLat').value),
+      longitude: parseFloat(document.getElementById('mLon').value),
+      deskripsi: document.getElementById('mDeskripsi').value.trim() || null
+    };
+    const url = editingId ? `${API}/fasilitas/${editingId}` : `${API}/fasilitas`;
+    const method = editingId ? 'PUT' : 'POST';
+    try {
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        if (res.status === 401) { doLogout(); return; }
+        throw new Error(err.detail || 'Gagal menyimpan');
+      }
+      closeModal();
+      loadFasilitas();
+      showToast(editingId ? '✅ Fasilitas berhasil diperbarui!' : '✅ Fasilitas berhasil ditambahkan!', 'success');
+    } catch(e) { showToast('❌ ' + e.message, 'error'); }
+  }
+
+  async function deleteFasilitas(id, nama) {
+    if (!confirm(`Hapus fasilitas "${nama}"?`)) return;
+    try {
+      const res = await fetch(`${API}/fasilitas/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 401) { doLogout(); return; }
+        throw new Error('Gagal menghapus');
+      }
+      loadFasilitas();
+      showToast('🗑️ Fasilitas berhasil dihapus!', 'success');
+    } catch(e) { showToast('❌ ' + e.message, 'error'); }
+  }
+
+  // ===== PICK COORD =====
+  function startPickCoord() {
+    pickingCoord = true;
+    document.getElementById('formModal').classList.remove('show');
+    document.getElementById('mapClickInfo').style.display = 'block';
+    map.getContainer().style.cursor = 'crosshair';
+    document.getElementById('btnPickCoord').innerHTML = '<i class="fas fa-times"></i> Batalkan Pilih Koordinat';
+  }
+
+  function stopPickCoord() {
+    pickingCoord = false;
+    document.getElementById('mapClickInfo').style.display = 'none';
+    map.getContainer().style.cursor = '';
+    document.getElementById('formModal').classList.add('show');
+    document.getElementById('btnPickCoord').innerHTML = '<i class="fas fa-crosshairs"></i> Pilih Koordinat dari Peta';
+  }
+
+  // ===== HELPERS =====
+  function setErr(groupId, show) {
+    document.getElementById(groupId).classList.toggle('has-error', show);
+  }
+  function showAlert(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function hideAlert(id) { document.getElementById(id).style.display = 'none'; }
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<i class="fas ${type==='success'?'fa-check-circle':'fa-times-circle'}"></i> ${msg}`;
+    document.getElementById('toastContainer').appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+</script>
+</body>
+</html>
